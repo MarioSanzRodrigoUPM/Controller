@@ -69,6 +69,7 @@ var ServerIP dhcpIP
 
 var addressLeaseTime int = 60 // TODO: Cambiar esto a un valor más razonable (en segundos)
 
+// cambiamos esta función para recibir directamente la Ip que queremos asignar (añadimos assignedIP)
 func NewOfferFromDiscover(discover *dhcpv4.DHCPv4, clients *Clients) (*dhcpv4.DHCPv4, error) {
 
 	macAddr := ([6]byte)(discover.ClientHWAddr)
@@ -85,10 +86,12 @@ func NewOfferFromDiscover(discover *dhcpv4.DHCPv4, clients *Clients) (*dhcpv4.DH
 
 	if !ok {
 		client = ClientInfo{ // TODO: Add 5G here (https://github.com/Rotchamar/STGUTG/blob/feature/agf-dhcp/src/stgutg/dhcp.go)
-			IP:                 net.IPv4(10, 2, 0, 100), // nil
+			//IP: net.IPv4(10, 2, 0, 100), // nil
+			IP:                 GetAssignedIP(),
 			State:              CodeRecvDiscover,
 			SessionEstablished: false,
 		}
+		log.Printf("[NewOfferFromDiscover] Asignando IP %s al cliente %s", client.IP, macAddr)
 		// TODO: Probando el forcerenew
 		go func() {
 			time.Sleep(15 * time.Second)
@@ -96,6 +99,7 @@ func NewOfferFromDiscover(discover *dhcpv4.DHCPv4, clients *Clients) (*dhcpv4.DH
 		}()
 	} else {
 		client.State = CodeRecvDiscover
+		//client.IP = assignedIP //actualizamos la IP si ya existía
 	}
 
 	client.ValidForcerenewNonce = false // Required for resetting the Nonce for new connections

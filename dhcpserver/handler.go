@@ -4,8 +4,14 @@ import (
 	"bytes"
 	"log"
 	"net"
+	"sync"
 
 	"github.com/Rotchamar/dhcp/dhcpv4"
+)
+
+var (
+	poolMutex    sync.Mutex
+	nextHostByte = byte(100) // 10.x.y.100, 101, 102, ...
 )
 
 // handlerDHCP procesa los mensajes DHCP DISCOVER, REQUEST y RELEASE
