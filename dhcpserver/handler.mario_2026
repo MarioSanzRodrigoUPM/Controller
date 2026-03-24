@@ -1,0 +1,60 @@
+package dhcpserver
+
+import (
+	"bytes"
+	"log"
+	"net"
+	"sync"
+
+	"github.com/Rotchamar/dhcp/dhcpv4"
+)
+
+var (
+	poolMutex    sync.Mutex
+	nextHostByte = byte(100)
+)
+
+// handlerDHCP process DHCP DISCOVER, REQUEST y RELEASE
+func handlerDHCP(conn net.PacketConn, peer net.Addr, m *dhcpv4.DHCPv4) {
+	log.Print(m.Summary())
+	log.Printf("[handlerDHCP] Mensaje %s desde MAC %s", m.MessageType(), m.ClientHWAddr.String())
+
+	switch m.MessageType() {
+	case dhcpv4.MessageTypeDiscover:
+		if !bytes.Equal(m.Options[dhcpv4.OptionForcerenewNonceCapable.Code()], dhcpv4.AlgorithmHMAC_MD5.ToBytes()) {
+			return
+		}
+
+		if !DecideIPByMAC(m.ClientHWAddr) {
+			log.Printf("[handlerDHCP] DISCOVER ignorado: MAC %s sin targetGnbID válido", m.ClientHWAddr.String())
+			return
+		}
+
+		offer, err := NewOfferFromDiscover(m, &DHCPClients)
+		if err != nil {
+			log.Printf("[handlerDHCP] Error creando OFFER para MAC %s: %v", m.ClientHWAddr.String(), err)
+			return
+		}
+		sendEthFromDHCP(offer, EthConn)
+
+	case dhcpv4.MessageTypeRequest:
+		if !bytes.Equal(m.Options[dhcpv4.OptionForcerenewNonceCapable.Code()], dhcpv4.AlgorithmHMAC_MD5.ToBytes()) {
+			return
+		}
+
+		if !DecideIPByMAC(m.ClientHWAddr) {
+			log.Printf("[handlerDHCP] REQUEST ignorado: MAC %s sin targetGnbID válido", m.ClientHWAddr.String())
+			return
+		}
+
+		ack, err := NewAckFromRequest(m, &DHCPClients)
+		if err != nil {
+			log.Printf("[handlerDHCP] Error creando ACK para MAC %s: %v", m.ClientHWAddr.String(), err)
+			return
+		}
+		sendEthFromDHCP(ack, EthConn)
+
+	case dhcpv4.MessageTypeRelease:
+		ReleaseClient(m, &DHCPClients)
+	}
+}
